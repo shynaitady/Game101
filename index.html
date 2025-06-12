@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okey 101</title>
+    <link rel="stylesheet" href="src/css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="room-header">
+            <span id="room-id"></span>
+            <button id="leave-room" style="display:none; margin-left: 20px;">Покинуть комнату</button>
+        </div>
+        <div id="room-controls">
+            <button id="create-room">Create Room</button>
+            <button id="join-room">Join Room</button>
+        </div>
+        <div id="game-info">
+            <div id="current-player"></div>
+            <div id="timer"></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="player-controls">
+            <button id="end-turn">End Turn</button>
+        </div>
+    </div>
+    <script src="src/js/game.js"></script>
+    <script src="src/js/room.js"></script>
+    <script src="src/js/player.js"></script>
+    <script src="src/js/main.js"></script>
+</body>
+</html> 
