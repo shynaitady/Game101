@@ -9,6 +9,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // Bind leave room button
+    document.getElementById('leave-room').addEventListener('click', () => {
+        roomManager.leaveRoom();
+    });
+    
+    // Bind play to table button
+    document.getElementById('play-to-table').addEventListener('click', () => {
+        game.playToTable();
+    });
+    
+    // Bind cancel selection button
+    document.getElementById('cancel-selection').addEventListener('click', () => {
+        game.cancelSelection();
+    });
+    
     // Animation loop
     function animate() {
         game.draw();

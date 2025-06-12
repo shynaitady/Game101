@@ -34,6 +34,12 @@ class RoomManager {
             this.addPlayerToRoom(botPlayer);
         }
         
+        // Show room id and leave button
+        document.getElementById('room-id').textContent = `Room ID: ${roomId}`;
+        document.getElementById('leave-room').style.display = '';
+        // Hide room controls
+        document.getElementById('room-controls').style.display = 'none';
+        
         console.log(`Room created: ${roomId}`);
         this.startGame();
     }
@@ -65,5 +71,21 @@ class RoomManager {
             this.game.startTurn();
             this.game.draw();
         }
+    }
+
+    leaveRoom() {
+        this.currentRoom = null;
+        this.game.players = [];
+        this.game.currentPlayerIndex = 0;
+        this.game.tiles = [];
+        this.game.selectedTile = null;
+        this.game.selectedTileIndex = null;
+        this.game.gameStarted = false;
+        document.getElementById('room-id').textContent = '';
+        document.getElementById('leave-room').style.display = 'none';
+        document.getElementById('room-controls').style.display = '';
+        document.getElementById('current-player').textContent = '';
+        document.getElementById('timer').textContent = '';
+        this.game.draw();
     }
 } 
