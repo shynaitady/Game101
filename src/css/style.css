@@ -113,4 +113,140 @@ button:hover {
 
 #player-controls button {
     margin: 0 5px;
+}
+
+/* Стили для модального окна выбора тайла */
+.tile-selection-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.tile-selection-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    max-width: 80%;
+    max-height: 80%;
+    overflow-y: auto;
+}
+
+.tile-selection-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center;
+    color: #333;
+}
+
+.tile-selection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 10px;
+    padding: 10px;
+}
+
+.tile-selection-grid .tile {
+    width: 60px;
+    height: 80px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.tile-selection-grid .tile:hover {
+    transform: scale(1.1);
+}
+
+/* Стили для кнопок действий */
+#possible-actions {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+}
+
+#possible-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#possible-actions button:hover {
+    background-color: #45a049;
+}
+
+#possible-actions button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+/* Стили для элементов управления */
+#controls {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+#room-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#join-room {
+    display: flex;
+    gap: 5px;
+}
+
+#roomIdInput {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    width: 150px;
+}
+
+#controls button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#controls button:hover {
+    background-color: #45a049;
+}
+
+#controls button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 } 
