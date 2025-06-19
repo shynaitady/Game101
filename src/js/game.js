@@ -17,7 +17,6 @@ class OkeyGame {
         this.scores = [0, 0, 0, 0];
         this.isDiscarding = false;
         this.pendingActions = [];
-        this.playerScroll = [0, 0, 0, 0]; // Индекс прокрутки для каждой руки
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
@@ -59,19 +58,14 @@ class OkeyGame {
     }
 
     distributeTiles() {
-        // 21 фишка всем, 22 — первому игроку
         for (let i = 0; i < 4; i++) {
-            const count = (i === 0) ? 22 : 21;
             if (!this.players[i]) {
                 this.players[i] = { id: `player${i+1}`, name: `Player ${i+1}`, tiles: [], played: [], hasInitialMeld: false, isBot: i !== 0, score: 0 };
             }
-            this.players[i].tiles = this.tiles.slice(i * 21 + (i === 0 ? 0 : 22), i * 21 + (i === 0 ? 22 : 21 * (i + 1) + 1));
+            this.players[i].tiles = this.tiles.slice(i * 14, (i + 1) * 14);
             this.players[i].played = [];
             this.players[i].hasInitialMeld = false;
         }
-        // Оставшиеся фишки — стопка
-        this.deck = this.tiles.slice(22 + 21 * 3);
-        this.discardPile = [];
     }
 
     updateScores() {
@@ -132,13 +126,6 @@ class OkeyGame {
         this.selectedDiscard = null;
         this.isDiscarding = false;
         this.draw();
-        // В начале хода — взять фишку из стопки
-        if (!currentPlayer.hasDrawn) {
-            if (this.deck.length > 0) {
-                currentPlayer.tiles.push(this.deck.pop());
-            }
-            currentPlayer.hasDrawn = true;
-        }
         this.timer = setInterval(() => {
             this.turnTime--;
             this.updateTimer();
@@ -182,8 +169,6 @@ class OkeyGame {
         if (this.timer) clearInterval(this.timer);
         this.updateScores();
         if (this.checkWin()) return;
-        // Сбросить флаг взятия фишки
-        this.players[this.currentPlayerIndex].hasDrawn = false;
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
         this.startTurn();
     }
@@ -209,167 +194,122 @@ class OkeyGame {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.tileRects = [];
-        // 1. Визуализация стопки и сброса
-        this.drawDeckAndDiscard();
-        // 2. Игроки
         this.players.forEach((player, index) => {
             this.drawPlayerTiles(player, index);
             this.drawPlayerName(player, index);
         });
-        // 3. Комбинации
         this.drawTable();
     }
 
-    drawDeckAndDiscard() {
-        // Coordinates and dimensions
-        const deckX = 60, deckY = this.canvas.height / 2 - 40;
-        const discardX = this.canvas.width - 108, discardY = this.canvas.height / 2 - 40;
-        const tileWidth = 48, tileHeight = 64;
-
-        // Store rectangles for interaction
-        this.deckRect = { x: deckX, y: deckY, w: tileWidth, h: tileHeight };
-        this.discardRect = { x: discardX, y: discardY, w: tileWidth, h: tileHeight };
-
-        // Draw deck
-        this.ctx.save();
-        this.ctx.fillStyle = '#eee';
-        this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 2;
-        this.ctx.fillRect(deckX, deckY, tileWidth, tileHeight);
-        this.ctx.strokeRect(deckX, deckY, tileWidth, tileHeight);
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 18px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('Стопка', deckX + tileWidth/2, deckY - 18);
-        this.ctx.fillText(this.deck.length.toString(), deckX + tileWidth/2, deckY + tileHeight/2);
-        this.ctx.restore();
-
-        // Draw discard pile
-        this.ctx.save();
-        this.ctx.fillStyle = '#ffe0b2';
-        this.ctx.strokeStyle = 'black';
-        this.ctx.lineWidth = 2;
-        this.ctx.fillRect(discardX, discardY, tileWidth, tileHeight);
-        this.ctx.strokeRect(discardX, discardY, tileWidth, tileHeight);
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 18px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('Сброс', discardX + tileWidth/2, discardY - 18);
-        if (this.discardPile.length > 0) {
-            const lastDiscard = this.discardPile[this.discardPile.length - 1];
-            this.drawTile(lastDiscard, discardX, discardY, tileWidth, tileHeight);
-        } else {
-            this.ctx.fillText('0', discardX + tileWidth/2, discardY + tileHeight/2);
-        }
-        this.ctx.restore();
-    }
-
     drawPlayerTiles(player, index) {
-        const tileWidth = 48;
-        const tileHeight = 64;
-        const spacing = 10;
-        const visibleTiles = 14;
-        let x, y, rotation = 0;
-        const scroll = this.playerScroll[index] || 0;
-        
-        // Calculate positions based on player index
-        if (index === 0) {
-            x = (this.canvas.width - (visibleTiles * (tileWidth + spacing))) / 2;
-            y = this.canvas.height - tileHeight - 60;
-        } else if (index === 1) {
-            x = this.canvas.width - tileHeight - 60;
-            y = (this.canvas.height + (visibleTiles * (tileWidth + spacing))) / 2;
-            rotation = -90;
-        } else if (index === 2) {
-            x = (this.canvas.width + (visibleTiles * (tileWidth + spacing))) / 2;
-            y = tileHeight + 60;
-            rotation = 180;
-        } else {
-            x = tileHeight + 60;
-            y = (this.canvas.height - (visibleTiles * (tileWidth + spacing))) / 2;
-            rotation = 90;
-        }
-
-        // Draw scroll arrows if needed
-        if (player.tiles.length > visibleTiles) {
-            const arrowSize = 30;
-            if (index === 0) {
-                // Left arrow
-                const leftEnabled = scroll > 0;
-                this.drawScrollArrow(x - arrowSize - 10, y + tileHeight/2, 'left', index, leftEnabled);
-                // Right arrow
-                const rightEnabled = scroll < player.tiles.length - visibleTiles;
-                this.drawScrollArrow(x + (visibleTiles * (tileWidth + spacing)), y + tileHeight/2, 'right', index, rightEnabled);
-            } else if (index === 1) {
-                const leftEnabled = scroll > 0;
-                this.drawScrollArrow(x + tileHeight/2, y - arrowSize - 10, 'left', index, leftEnabled);
-                const rightEnabled = scroll < player.tiles.length - visibleTiles;
-                this.drawScrollArrow(x + tileHeight/2, y + (visibleTiles * (tileWidth + spacing)), 'right', index, rightEnabled);
-            } else if (index === 2) {
-                const leftEnabled = scroll > 0;
-                this.drawScrollArrow(x - arrowSize - 10, y + tileHeight/2, 'left', index, leftEnabled);
-                const rightEnabled = scroll < player.tiles.length - visibleTiles;
-                this.drawScrollArrow(x - (visibleTiles * (tileWidth + spacing)), y + tileHeight/2, 'right', index, rightEnabled);
-            } else {
-                const leftEnabled = scroll > 0;
-                this.drawScrollArrow(x + tileHeight/2, y - arrowSize - 10, 'left', index, leftEnabled);
-                const rightEnabled = scroll < player.tiles.length - visibleTiles;
-                this.drawScrollArrow(x + tileHeight/2, y - (visibleTiles * (tileWidth + spacing)), 'right', index, rightEnabled);
-            }
-        }
-
-        // Draw tiles
-        player.tiles.slice(scroll, scroll + visibleTiles).forEach((tile, i) => {
+        if (!player.tiles) return;
+        const tileWidth = 40;
+        const tileHeight = 60;
+        const padding = 5;
+        // Highlight current player
+        if (index === this.currentPlayerIndex) {
             this.ctx.save();
-            let tileX, tileY;
-            
+            this.ctx.strokeStyle = 'green';
+            this.ctx.lineWidth = 5;
+            let x, y, w, h;
             if (index === 0) {
-                tileX = x + i * (tileWidth + spacing);
-                tileY = y;
+                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 - 10;
+                y = this.canvas.height - tileHeight - padding - 10;
+                w = player.tiles.length * (tileWidth + padding) + 20;
+                h = tileHeight + 20;
             } else if (index === 1) {
-                tileX = x;
-                tileY = y + i * (tileWidth + spacing);
+                x = this.canvas.width - tileWidth - padding - 10;
+                y = 0;
+                w = tileWidth + 20;
+                h = this.canvas.height;
             } else if (index === 2) {
-                tileX = x - i * (tileWidth + spacing);
-                tileY = y;
+                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 - 10;
+                y = padding - 10;
+                w = player.tiles.length * (tileWidth + padding) + 20;
+                h = tileHeight + 20;
             } else {
-                tileX = x;
-                tileY = y - i * (tileWidth + spacing);
+                x = padding - 10;
+                y = 0;
+                w = tileWidth + 20;
+                h = this.canvas.height;
             }
-
-            // Store tile rect for interaction
-            if (index === this.currentPlayerIndex) {
-                this.tileRects.push({
-                    x: tileX,
-                    y: tileY,
-                    w: tileWidth,
-                    h: tileHeight,
-                    index: i + scroll
-                });
-            }
-
-            // Rotate context if needed
-            if (rotation !== 0) {
-                this.ctx.translate(tileX + tileWidth/2, tileY + tileHeight/2);
-                this.ctx.rotate(rotation * Math.PI / 180);
-                tileX = -tileWidth/2;
-                tileY = -tileHeight/2;
-            }
-
-            const isHovered = this.currentPlayerIndex === index && this.lastHoveredTileIndex === i + scroll;
-            const isSelected = this.currentPlayerIndex === index && this.selectedTiles.includes(i + scroll);
-            
-            // Check if this tile can form valid combinations with selected tiles
-            let isPossible = false;
-            if (this.currentPlayerIndex === index && this.selectedTiles.length > 0 && !isSelected) {
-                const testTiles = [...this.selectedTiles.map(idx => player.tiles[idx]), tile];
-                isPossible = this.isValidCombination(testTiles);
-            }
-
-            this.drawTile(tile, tileX, tileY, tileWidth, tileHeight, isHovered, isSelected, isPossible);
+            this.ctx.strokeRect(x, y, w, h);
             this.ctx.restore();
+        }
+        // Подсветка возможных комбинаций
+        let possible = [];
+        if (index === 0) {
+            if (this.selectedTiles.length === 1) {
+                // Подсветить все карты, которые с выбранной могут дать валидную комбинацию
+                for (let i = 0; i < player.tiles.length; i++) {
+                    if (i === this.selectedTiles[0]) continue;
+                    for (let j = 0; j < player.tiles.length; j++) {
+                        if (j === this.selectedTiles[0] || j === i) continue;
+                        const comb = [player.tiles[this.selectedTiles[0]], player.tiles[i], player.tiles[j]];
+                        if (this.isValidCombination(comb)) {
+                            possible.push(i, j);
+                        }
+                    }
+                }
+                possible = Array.from(new Set(possible));
+            } else if (this.selectedTiles.length === 2) {
+                // Подсветить все третьи карты, которые с двумя выбранными дадут валидную комбинацию
+                for (let i = 0; i < player.tiles.length; i++) {
+                    if (this.selectedTiles.includes(i)) continue;
+                    const comb = [player.tiles[this.selectedTiles[0]], player.tiles[this.selectedTiles[1]], player.tiles[i]];
+                    if (this.isValidCombination(comb)) {
+                        possible.push(i);
+                    }
+                }
+            } else if (this.selectedTiles.length === 0 && this.lastHoveredTileIndex !== null) {
+                // Подсветить все возможные пары для наведения
+                for (let i = 0; i < player.tiles.length; i++) {
+                    if (i === this.lastHoveredTileIndex) continue;
+                    for (let j = 0; j < player.tiles.length; j++) {
+                        if (j === this.lastHoveredTileIndex || j === i) continue;
+                        const comb = [player.tiles[this.lastHoveredTileIndex], player.tiles[i], player.tiles[j]];
+                        if (this.isValidCombination(comb)) {
+                            possible.push(i, j);
+                        }
+                    }
+                }
+                possible = Array.from(new Set(possible));
+            }
+        }
+        player.tiles.forEach((tile, tileIndex) => {
+            let x, y;
+            if (index === 0) {
+                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 + tileIndex * (tileWidth + padding);
+                y = this.canvas.height - tileHeight - padding;
+            } else if (index === 1) {
+                x = this.canvas.width - tileWidth - padding;
+                const totalHeight = this.canvas.height - tileHeight - 2 * padding;
+                const step = player.tiles.length > 1 ? totalHeight / (player.tiles.length - 1) : 0;
+                y = padding + tileIndex * step;
+            } else if (index === 2) {
+                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 + tileIndex * (tileWidth + padding);
+                y = padding;
+            } else {
+                x = padding;
+                const totalHeight = this.canvas.height - tileHeight - 2 * padding;
+                const step = player.tiles.length > 1 ? totalHeight / (player.tiles.length - 1) : 0;
+                y = padding + tileIndex * step;
+            }
+            // Save rect for selection (только для игрока 0)
+            if (index === 0) {
+                this.tileRects[tileIndex] = { x, y, w: tileWidth, h: tileHeight };
+            }
+            // Подсветка
+            let isHovered = (index === 0 && tileIndex === this.lastHoveredTileIndex);
+            let isSelected = (index === 0 && this.selectedTiles.includes(tileIndex));
+            let isPossible = (index === 0 && possible.includes(tileIndex));
+            let isValid = false, isInvalid = false;
+            if (index === 0 && this.selectedTiles.length >= 3) {
+                const comb = this.selectedTiles.map(i => player.tiles[i]);
+                if (this.isValidCombination(comb)) isValid = true;
+                else isInvalid = true;
+            }
+            this.drawTile(tile, x, y, tileWidth, tileHeight, isHovered, isSelected, isPossible, isValid, isInvalid);
         });
     }
 
@@ -393,19 +333,24 @@ class OkeyGame {
             x = 40;
             y = this.canvas.height / 2;
         }
-        // Добавить количество карт в руке
-        this.ctx.fillText(`${player.name} (${player.tiles.length})`, x, y);
+        this.ctx.fillText(player.name, x, y);
         this.ctx.restore();
     }
 
-    drawTile(tile, x, y, width, height, isHovered = false, isSelected = false, isPossible = false) {
+    drawTile(tile, x, y, width, height, isHovered = false, isSelected = false, isPossible = false, isValid = false, isInvalid = false) {
         this.ctx.save();
-        if (isPossible) {
-            this.ctx.strokeStyle = '#FFD600';
-            this.ctx.lineWidth = 3;
+        if (isInvalid) {
+            this.ctx.strokeStyle = '#ff4444';
+            this.ctx.lineWidth = 4;
+        } else if (isValid) {
+            this.ctx.strokeStyle = '#4CAF50';
+            this.ctx.lineWidth = 4;
         } else if (isSelected) {
             this.ctx.strokeStyle = '#FF9800';
             this.ctx.lineWidth = 4;
+        } else if (isPossible) {
+            this.ctx.strokeStyle = '#FFD600';
+            this.ctx.lineWidth = 3;
         } else if (isHovered) {
             this.ctx.strokeStyle = '#2196F3';
             this.ctx.lineWidth = 3;
@@ -451,90 +396,26 @@ class OkeyGame {
     handleTileClick(e) {
         if (this.currentPlayerIndex !== 0) return;
         if (!this.players[0] || !this.players[0].tiles) return;
-        
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-
-        // Handle scroll arrow clicks
-        if (this.scrollArrows) {
-            for (const arrow of this.scrollArrows) {
-                if (arrow.enabled && 
-                    mouseX >= arrow.x && mouseX <= arrow.x + arrow.w && 
-                    mouseY >= arrow.y && mouseY <= arrow.y + arrow.h) {
-                    if (arrow.dir === 'left') {
-                        this.playerScroll[arrow.playerIdx] = Math.max(0, (this.playerScroll[arrow.playerIdx] || 0) - 1);
-                    } else {
-                        this.playerScroll[arrow.playerIdx] = Math.min(
-                            this.players[arrow.playerIdx].tiles.length - 14,
-                            (this.playerScroll[arrow.playerIdx] || 0) + 1
-                        );
-                    }
-                    this.draw();
-                    return;
+        for (let i = 0; i < this.tileRects.length; i++) {
+            const r = this.tileRects[i];
+            if (
+                mouseX >= r.x && mouseX <= r.x + r.w &&
+                mouseY >= r.y && mouseY <= r.y + r.h
+            ) {
+                const idx = this.selectedTiles.indexOf(i);
+                if (idx !== -1) {
+                    this.selectedTiles.splice(idx, 1);
+                } else {
+                    this.selectedTiles.push(i);
                 }
-            }
-        }
-
-        // Handle deck/discard pile clicks if player hasn't drawn yet
-        if (!this.players[0].hasDrawn) {
-            if (this.deckRect && 
-                mouseX >= this.deckRect.x && mouseX <= this.deckRect.x + this.deckRect.w && 
-                mouseY >= this.deckRect.y && mouseY <= this.deckRect.y + this.deckRect.h) {
-                if (this.deck.length > 0) {
-                    this.players[0].tiles.push(this.deck.pop());
-                    this.players[0].hasDrawn = true;
-                    this.draw();
-                }
-                return;
-            }
-            if (this.discardRect && 
-                mouseX >= this.discardRect.x && mouseX <= this.discardRect.x + this.discardRect.w && 
-                mouseY >= this.discardRect.y && mouseY <= this.discardRect.y + this.discardRect.h) {
-                if (this.discardPile.length > 0) {
-                    this.players[0].tiles.push(this.discardPile.pop());
-                    this.players[0].hasDrawn = true;
-                    this.draw();
-                }
-                return;
-            }
-        }
-
-        // Handle tile clicks
-        let clickedTileIndex = -1;
-        for (const rect of this.tileRects) {
-            if (mouseX >= rect.x && mouseX <= rect.x + rect.w &&
-                mouseY >= rect.y && mouseY <= rect.y + rect.h) {
-                clickedTileIndex = rect.index;
                 break;
             }
         }
-
-        if (clickedTileIndex !== -1) {
-            const idx = this.selectedTiles.indexOf(clickedTileIndex);
-            if (idx !== -1) {
-                // Deselect tile
-                this.selectedTiles.splice(idx, 1);
-            } else {
-                // Select tile
-                this.selectedTiles.push(clickedTileIndex);
-                
-                // Check if we can form a valid combination
-                if (this.selectedTiles.length >= 3) {
-                    const selectedCards = this.selectedTiles.map(i => this.players[0].tiles[i]);
-                    if (this.isValidCombination(selectedCards)) {
-                        // Highlight the valid combination
-                        this.draw();
-                    }
-                }
-            }
-            
-            // Sort selected tiles by index for better UX
-            this.selectedTiles.sort((a, b) => a - b);
-        }
-
         this.updateControls();
-        this.draw();
+        this.drawPendingActions();
     }
 
     updateControls() {
@@ -677,8 +558,6 @@ class OkeyGame {
     // Сбросить выбранную фишку
     discardTile(idx) {
         if (!this.isDiscarding) return;
-        const tile = this.players[0].tiles[idx];
-        this.discardPile.push(tile);
         this.players[0].tiles.splice(idx, 1);
         this.isDiscarding = false;
         this.updateScores();
@@ -706,41 +585,14 @@ class OkeyGame {
         let html = '<b>Ваши действия за ход:</b><br>';
         this.pendingActions.forEach((a, idx) => {
             if (a.type === 'comb') {
-                html += `Комбинация: [${a.tiles.map(i => this.players[0].tiles[i]?.number).join(', ')}] <button onclick="window.okeyGame.removePendingAction(${idx})">✖</button><br>`
+                html += `Комбинация: [${a.tiles.map(i => this.players[0].tiles[i]?.number).join(', ')}] <button onclick="window.okeyGame.removePendingAction(${idx})">✖</button><br>`;
+            } else if (a.type === 'add') {
+                html += `Добавить к набору #${a.setIdx+1}: ${this.players[0].tiles[a.tile]?.number} <button onclick="window.okeyGame.removePendingAction(${idx})">✖</button><br>`;
             }
         });
         panel.innerHTML = html;
     }
-
-    drawScrollArrow(x, y, dir, playerIdx, enabled) {
-        this.ctx.save();
-        this.ctx.fillStyle = enabled ? '#4CAF50' : '#ccc';
-        this.ctx.beginPath();
-        
-        if (dir === 'left') {
-            this.ctx.moveTo(x + 30, y - 15);
-            this.ctx.lineTo(x, y);
-            this.ctx.lineTo(x + 30, y + 15);
-        } else {
-            this.ctx.moveTo(x, y - 15);
-            this.ctx.lineTo(x + 30, y);
-            this.ctx.lineTo(x, y + 15);
-        }
-        
-        this.ctx.closePath();
-        this.ctx.fill();
-        this.ctx.restore();
-
-        // Store arrow hitbox
-        if (!this.scrollArrows) this.scrollArrows = [];
-        this.scrollArrows.push({
-            x: x,
-            y: y - 15,
-            w: 30,
-            h: 30,
-            dir: dir,
-            playerIdx: playerIdx,
-            enabled: enabled
-        });
-    }
 }
+
+// Для доступа из onclick в панели действий
+window.okeyGame = window.okeyGame || new OkeyGame(); 
