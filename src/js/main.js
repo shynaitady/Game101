@@ -24,6 +24,20 @@ document.addEventListener('DOMContentLoaded', () => {
         game.cancelSelection();
     });
     
+    // Bind draw from discard button
+    document.getElementById('draw-from-discard').addEventListener('click', () => {
+        if (game.gameStarted && game.currentPlayerIndex === 0) {
+            game.drawFromDiscard();
+        }
+    });
+    
+    // Bind draw from reserve button
+    document.getElementById('draw-from-reserve').addEventListener('click', () => {
+        if (game.gameStarted && game.currentPlayerIndex === 0) {
+            game.drawFromReserve();
+        }
+    });
+    
     // Animation loop
     function animate() {
         game.draw();
