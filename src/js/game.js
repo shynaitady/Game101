@@ -526,6 +526,25 @@ class OkeyGame {
         this.ctx.save();
         const isCurrentPlayer = index === this.currentPlayerIndex;
 
+        // --- Highlight logic for hovered tile ---
+        let possibleCombinationTileIndexes = [];
+        if (index === 0 && typeof this.lastHoveredTileIndex === 'number' && this.lastHoveredTileIndex >= 0) {
+            const hoveredTile = player.tiles[this.lastHoveredTileIndex];
+            // Find all valid combinations containing the hovered tile
+            const allCombs = this.findValidCombinations(player.tiles);
+            allCombs.forEach(comb => {
+                if (comb.includes(hoveredTile)) {
+                    comb.forEach(tile => {
+                        const idx = player.tiles.indexOf(tile);
+                        if (idx !== -1 && !possibleCombinationTileIndexes.includes(idx)) {
+                            possibleCombinationTileIndexes.push(idx);
+                        }
+                    });
+                }
+            });
+        }
+        // --- End highlight logic ---
+
         switch (index) {
             case 0: { // Bottom player (human)
                 const rackWidth = player.tiles.length * (tileWidth + 5) - 5;
@@ -550,7 +569,8 @@ class OkeyGame {
                 player.tiles.forEach((tile, idx) => {
                     const isHovered = this.lastHoveredTileIndex === idx;
                     const isSelected = this.selectedTiles.includes(idx);
-                    this.drawTile(tile, currentX, y, tileWidth, tileHeight, isHovered, isSelected);
+                    const isPossible = possibleCombinationTileIndexes.includes(idx);
+                    this.drawTile(tile, currentX, y, tileWidth, tileHeight, isHovered, isSelected, isPossible);
                     this.tileRects.push({ x: currentX, y, w: tileWidth, h: tileHeight });
                     currentX += tileWidth + 5;
                 });
