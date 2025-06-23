@@ -198,7 +198,6 @@ class OkeyGame {
         if (this.checkWin()) return;
         
         const currentPlayer = this.players[this.currentPlayerIndex];
-        document.getElementById('current-player').textContent = `Current Player: ${currentPlayer.name}`;
         
         // Игрок должен взять фишку в начале хода
         if (currentPlayer.isBot) {
@@ -530,7 +529,6 @@ class OkeyGame {
         let possibleCombinationTileIndexes = [];
         if (index === 0 && typeof this.lastHoveredTileIndex === 'number' && this.lastHoveredTileIndex >= 0) {
             const hoveredTile = player.tiles[this.lastHoveredTileIndex];
-            // Find all valid combinations containing the hovered tile
             const allCombs = this.findValidCombinations(player.tiles);
             allCombs.forEach(comb => {
                 if (comb.includes(hoveredTile)) {
@@ -576,80 +574,53 @@ class OkeyGame {
                 });
                 break;
             }
-            case 1: { // Right player
-                const rackHeight = player.tiles.length * 15 + padding * 2;
-                const x = this.canvas.width - tileHeight - padding;
-                const y = (this.canvas.height - rackHeight) / 2;
-                
-                this.ctx.translate(x + tileHeight, y);
-                this.ctx.rotate(Math.PI / 2);
-
-                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackHeight);
+            case 1: { // Right player (горизонтально)
+                const rackWidth = player.tiles.length * (tileWidth + 5) - 5;
+                const x = this.canvas.width - rackWidth - padding;
+                const y = (this.canvas.height - tileHeight) / 2;
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackWidth, x, y);
                 break;
             }
-            case 2: { // Top player
-                const rackWidth = player.tiles.length * 15 + padding * 2;
+            case 2: { // Top player (горизонтально)
+                const rackWidth = player.tiles.length * (tileWidth + 5) - 5;
                 const x = (this.canvas.width - rackWidth) / 2;
-                const y = padding;
-
-                this.ctx.translate(x, y);
-
-                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackWidth, false);
+                const y = padding + 30;
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackWidth, x, y);
                 break;
             }
-            case 3: { // Left player
-                const rackHeight = player.tiles.length * 15 + padding * 2;
+            case 3: { // Left player (горизонтально)
+                const rackWidth = player.tiles.length * (tileWidth + 5) - 5;
                 const x = padding;
-                const y = (this.canvas.height - rackHeight) / 2;
-
-                this.ctx.translate(x, y + rackHeight);
-                this.ctx.rotate(-Math.PI / 2);
-                
-                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackHeight);
+                const y = (this.canvas.height - tileHeight) / 2;
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackWidth, x, y);
                 break;
             }
         }
         this.ctx.restore();
     }
-    
-    drawBotRack(name, isCurrentPlayer, tileCount, length, isVertical = true) {
+
+    drawBotRack(name, isCurrentPlayer, tileCount, rackWidth, x, y) {
         const tileWidth = 40;
         const tileHeight = 60;
-        const rackWidth = isVertical ? tileHeight + 10 : length;
-        const rackHeight = isVertical ? length : tileHeight + 10;
-    
+        // Фон стойки
+        this.ctx.save();
         this.ctx.fillStyle = '#654321';
         this.ctx.strokeStyle = isCurrentPlayer ? 'yellow' : '#321a0a';
         this.ctx.lineWidth = isCurrentPlayer ? 4 : 2;
         this.ctx.beginPath();
-        this.ctx.roundRect(-5, -5, rackWidth, rackHeight, 10);
+        this.ctx.roundRect(x - 10, y - 10, rackWidth + 20, tileHeight + 20, 10);
         this.ctx.fill();
         this.ctx.stroke();
-    
-        this.ctx.save();
-        if (isVertical) {
-            this.ctx.rotate(Math.PI / 2);
-            this.ctx.translate(0, -rackWidth);
-        }
+        // Имя по центру над стойкой
         this.ctx.fillStyle = '#fff';
         this.ctx.font = 'bold 16px Arial';
-        this.ctx.textAlign = 'left';
-        
-        if(isVertical) {
-             this.ctx.fillText(name, 15, rackWidth - 20);
-        } else {
-             this.ctx.fillText(name, 5, -10);
-        }
-
-        this.ctx.restore();
-    
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(name, x + rackWidth / 2, y - 20);
+        // Фишки
         for (let i = 0; i < tileCount; i++) {
-            if (isVertical) {
-                this.drawTileBack(0, i * 15, tileHeight, tileWidth);
-            } else {
-                this.drawTileBack(i * 15, 0, tileWidth, tileHeight);
-            }
+            this.drawTileBack(x + i * (tileWidth + 5), y, tileWidth, tileHeight);
         }
+        this.ctx.restore();
     }
 
     drawTileBack(x, y, width, height) {
@@ -938,13 +909,12 @@ class OkeyGame {
     }
 
     updateTimer() {
+        // Таймер теперь отображается в отдельном div
         const timerElement = document.getElementById('timer');
         if (timerElement) {
             timerElement.textContent = `${this.turnTime}s`;
-            timerElement.style.color = this.turnTime <= 10 ? '#ff4444' : '#333';
+            timerElement.style.color = this.turnTime <= 10 ? '#ff4444' : '#fff';
         }
-        document.getElementById('timer').textContent = 
-            `Time remaining: ${this.turnTime}s`;
     }
 
     resizeCanvas() {
