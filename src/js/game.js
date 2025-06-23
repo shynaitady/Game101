@@ -473,12 +473,22 @@ class OkeyGame {
     draw() {
         if (!this.ctx) return;
         
+        this.tileRects = [];
+
         // Очищаем canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // Рисуем фон
-        this.ctx.fillStyle = '#f0f0f0';
+        this.ctx.fillStyle = '#084c24';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        this.ctx.font = 'bold 100px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('OKEY 101', this.canvas.width / 2, this.canvas.height / 2 - 50);
+        this.ctx.restore();
         
         // Проверяем инициализацию игроков перед отрисовкой
         if (this.players && this.players.length > 0) {
@@ -507,96 +517,119 @@ class OkeyGame {
     }
 
     drawPlayerTiles(player, index) {
-        // Проверяем наличие фишек у игрока
         if (!player || !player.tiles) return;
 
         const tileWidth = 40;
         const tileHeight = 60;
-        const padding = 10;
-        const margin = 20;
-        
-        // Вычисляем позиции для каждого игрока
-        let x, y, rotation = 0;
-        const isCurrentPlayer = index === this.currentPlayerIndex;
-        
-        switch(index) {
-            case 0: // Нижний игрок (человек)
-                x = padding;
-                y = this.canvas.height - tileHeight - padding;
-                break;
-            case 1: // Правый игрок
-                x = this.canvas.width - tileHeight - padding;
-                y = padding;
-                rotation = 90;
-                break;
-            case 2: // Верхний игрок
-                x = padding;
-                y = padding;
-                rotation = 0;
-                break;
-            case 3: // Левый игрок
-                x = padding;
-                y = padding;
-                rotation = -90;
-                break;
-        }
+        const padding = 15;
 
         this.ctx.save();
+        const isCurrentPlayer = index === this.currentPlayerIndex;
 
-        // Рисуем фон для зоны игрока
-        this.ctx.fillStyle = isCurrentPlayer ? 'rgba(220, 255, 220, 0.9)' : 'rgba(255, 255, 255, 0.9)';
-        this.ctx.strokeStyle = isCurrentPlayer ? '#4CAF50' : '#ccc';
-        this.ctx.lineWidth = 2;
+        switch (index) {
+            case 0: { // Bottom player (human)
+                const rackWidth = player.tiles.length * (tileWidth + 5) - 5;
+                const x = (this.canvas.width - rackWidth) / 2;
+                const y = this.canvas.height - tileHeight - padding;
 
-        if (index === 0) {
-            // Для человека-игрока рисуем горизонтальную зону
-            this.ctx.beginPath();
-            this.ctx.roundRect(0, y - padding, this.canvas.width, tileHeight + padding * 2, 10);
-            this.ctx.fill();
-            this.ctx.stroke();
+                this.ctx.fillStyle = '#654321';
+                this.ctx.strokeStyle = isCurrentPlayer ? 'yellow' : '#321a0a';
+                this.ctx.lineWidth = isCurrentPlayer ? 4 : 2;
+                this.ctx.beginPath();
+                this.ctx.roundRect(x - 10, y - 10, rackWidth + 20, tileHeight + 20, 10);
+                this.ctx.fill();
+                this.ctx.stroke();
 
-            // Отрисовка имени игрока
-            this.ctx.fillStyle = '#333';
-            this.ctx.font = 'bold 16px Arial';
-            this.ctx.textAlign = 'left';
-            this.ctx.fillText(`${player.name}${isCurrentPlayer ? ' (Ваш ход)' : ''}`, padding, y - padding * 2);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = 'bold 16px Arial';
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText(`${player.name}${isCurrentPlayer ? ' (Ваш ход)' : ''}`, x, y - 20);
 
-            // Отрисовка фишек
-            let currentX = padding;
-            player.tiles.forEach((tile, idx) => {
-                const isHovered = this.hoveredTile === idx;
-                const isSelected = this.selectedTiles.includes(idx);
-                this.drawTile(tile, currentX, y, tileWidth, tileHeight, isHovered, isSelected);
-                currentX += tileWidth + 5;
-            });
-        } else {
-            // Для ботов рисуем вертикальные зоны
-            const zoneWidth = tileHeight + padding * 2;
-            const zoneHeight = this.canvas.height * 0.6;
-            
-            this.ctx.translate(x, y);
-            this.ctx.rotate((rotation * Math.PI) / 180);
-            
-            this.ctx.beginPath();
-            this.ctx.roundRect(0, 0, zoneWidth, zoneHeight, 10);
-            this.ctx.fill();
-            this.ctx.stroke();
-
-            // Отрисовка имени игрока
-            this.ctx.fillStyle = '#333';
-            this.ctx.font = 'bold 16px Arial';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText(player.name, zoneWidth / 2, -padding);
-            
-            // Отрисовка фишек (рубашкой вверх)
-            let currentY = padding;
-            for (let i = 0; i < player.tiles.length; i++) {
-                this.drawTileBack(padding, currentY, tileWidth, tileHeight);
-                currentY += tileHeight / 3;
+                let currentX = x;
+                this.tileRects = [];
+                player.tiles.forEach((tile, idx) => {
+                    const isHovered = this.lastHoveredTileIndex === idx;
+                    const isSelected = this.selectedTiles.includes(idx);
+                    this.drawTile(tile, currentX, y, tileWidth, tileHeight, isHovered, isSelected);
+                    this.tileRects.push({ x: currentX, y, w: tileWidth, h: tileHeight });
+                    currentX += tileWidth + 5;
+                });
+                break;
             }
+            case 1: { // Right player
+                const rackHeight = player.tiles.length * 15 + padding * 2;
+                const x = this.canvas.width - tileHeight - padding;
+                const y = (this.canvas.height - rackHeight) / 2;
+                
+                this.ctx.translate(x + tileHeight, y);
+                this.ctx.rotate(Math.PI / 2);
+
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackHeight);
+                break;
+            }
+            case 2: { // Top player
+                const rackWidth = player.tiles.length * 15 + padding * 2;
+                const x = (this.canvas.width - rackWidth) / 2;
+                const y = padding;
+
+                this.ctx.translate(x, y);
+
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackWidth, false);
+                break;
+            }
+            case 3: { // Left player
+                const rackHeight = player.tiles.length * 15 + padding * 2;
+                const x = padding;
+                const y = (this.canvas.height - rackHeight) / 2;
+
+                this.ctx.translate(x, y + rackHeight);
+                this.ctx.rotate(-Math.PI / 2);
+                
+                this.drawBotRack(player.name, isCurrentPlayer, player.tiles.length, rackHeight);
+                break;
+            }
+        }
+        this.ctx.restore();
+    }
+    
+    drawBotRack(name, isCurrentPlayer, tileCount, length, isVertical = true) {
+        const tileWidth = 40;
+        const tileHeight = 60;
+        const rackWidth = isVertical ? tileHeight + 10 : length;
+        const rackHeight = isVertical ? length : tileHeight + 10;
+    
+        this.ctx.fillStyle = '#654321';
+        this.ctx.strokeStyle = isCurrentPlayer ? 'yellow' : '#321a0a';
+        this.ctx.lineWidth = isCurrentPlayer ? 4 : 2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(-5, -5, rackWidth, rackHeight, 10);
+        this.ctx.fill();
+        this.ctx.stroke();
+    
+        this.ctx.save();
+        if (isVertical) {
+            this.ctx.rotate(Math.PI / 2);
+            this.ctx.translate(0, -rackWidth);
+        }
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'left';
+        
+        if(isVertical) {
+             this.ctx.fillText(name, 15, rackWidth - 20);
+        } else {
+             this.ctx.fillText(name, 5, -10);
         }
 
         this.ctx.restore();
+    
+        for (let i = 0; i < tileCount; i++) {
+            if (isVertical) {
+                this.drawTileBack(0, i * 15, tileHeight, tileWidth);
+            } else {
+                this.drawTileBack(i * 15, 0, tileWidth, tileHeight);
+            }
+        }
     }
 
     drawTileBack(x, y, width, height) {
@@ -605,7 +638,7 @@ class OkeyGame {
         // Фон рубашки
         this.ctx.fillStyle = '#e0e0e0';
         this.ctx.strokeStyle = '#999';
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = 1;
         
         // Рисуем рубашку
         this.ctx.beginPath();
@@ -618,10 +651,10 @@ class OkeyGame {
         this.ctx.lineWidth = 1;
         
         // Диагональные линии
-        for (let i = -height; i < width + height; i += 10) {
+        for (let i = -height; i < width + height; i += 8) {
             this.ctx.beginPath();
             this.ctx.moveTo(x + i, y);
-            this.ctx.lineTo(x + i + height, y + height);
+            this.ctx.lineTo(x + i - height, y + height);
             this.ctx.stroke();
         }
         
@@ -693,7 +726,10 @@ class OkeyGame {
     }
 
     clearHover() {
-        this.lastHoveredTileIndex = null;
+        if (this.lastHoveredTileIndex !== null) {
+            this.lastHoveredTileIndex = null;
+            this.draw();
+        }
     }
 
     handleMouseMove(e) {
@@ -701,7 +737,7 @@ class OkeyGame {
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
-        this.lastHoveredTileIndex = null;
+        let newHoveredIndex = null;
         if (this.currentPlayerIndex === 0) {
             for (let i = 0; i < this.tileRects.length; i++) {
                 const r = this.tileRects[i];
@@ -709,10 +745,14 @@ class OkeyGame {
                     mouseX >= r.x && mouseX <= r.x + r.w &&
                     mouseY >= r.y && mouseY <= r.y + r.h
                 ) {
-                    this.lastHoveredTileIndex = i;
+                    newHoveredIndex = i;
                     break;
                 }
             }
+        }
+        if(this.lastHoveredTileIndex !== newHoveredIndex) {
+            this.lastHoveredTileIndex = newHoveredIndex;
+            this.draw();
         }
     }
 
@@ -738,7 +778,7 @@ class OkeyGame {
             }
         }
         this.updateControls();
-        this.drawPendingActions();
+        this.draw();
     }
 
     updateControls() {
@@ -801,51 +841,31 @@ class OkeyGame {
     }
 
     drawTable() {
-        const tableY = this.canvas.height * 0.4;
-        const tileHeight = 60;
-        const tileWidth = 40;
+        const tableY = this.canvas.height / 2 - 100;
+        const tileHeight = 50;
+        const tileWidth = 35;
         const padding = 10;
-        let currentX = padding;
+        let currentX = this.canvas.width * 0.2;
         let currentY = tableY;
+        const tableAreaWidth = this.canvas.width * 0.6;
+
 
         this.ctx.save();
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        this.ctx.strokeStyle = '#ccc';
-        this.ctx.lineWidth = 2;
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        this.ctx.roundRect(0, tableY - padding, this.canvas.width, tileHeight * 2 + padding * 2, 10);
+        this.ctx.roundRect(currentX - padding, tableY - padding, tableAreaWidth + padding * 2, tileHeight * 2 + padding * 4, 10);
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Отрисовка заголовка "На столе"
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 16px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('На столе:', padding, tableY - padding * 2);
 
-        // Отрисовка комбинаций
         this.table.forEach((combination, combIdx) => {
-            // Проверяем, нужно ли перейти на новую строку
-            if (currentX + (combination.length * (tileWidth + 5)) > this.canvas.width - padding) {
-                currentX = padding;
+            if (currentX + (combination.length * (tileWidth + 5)) > this.canvas.width * 0.8 - padding) {
+                currentX = this.canvas.width * 0.2;
                 currentY += tileHeight + padding;
             }
 
-            // Отрисовка фона для комбинации
-            this.ctx.fillStyle = 'rgba(240, 240, 240, 0.9)';
-            this.ctx.strokeStyle = '#ddd';
-            this.ctx.beginPath();
-            this.ctx.roundRect(
-                currentX - 5,
-                currentY - 5,
-                combination.length * (tileWidth + 5) + 10,
-                tileHeight + 10,
-                5
-            );
-            this.ctx.fill();
-            this.ctx.stroke();
-
-            // Отрисовка фишек комбинации
             combination.forEach((tile, tileIdx) => {
                 this.drawTile(
                     tile,
@@ -865,42 +885,33 @@ class OkeyGame {
     }
 
     drawDiscardPile() {
-        const pileY = this.canvas.height * 0.7;
-        const tileHeight = 60;
-        const tileWidth = 40;
+        const pileY = this.canvas.height / 2 + 50;
+        const tileHeight = 50;
+        const tileWidth = 35;
         const padding = 10;
-
-        this.ctx.save();
+        let currentX = this.canvas.width * 0.2;
+        const tableAreaWidth = this.canvas.width * 0.6;
         
-        // Рисуем фон для зоны сброса
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        this.ctx.strokeStyle = '#ccc';
-        this.ctx.lineWidth = 2;
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        this.ctx.roundRect(0, pileY - padding, this.canvas.width, tileHeight + padding * 2, 10);
+        this.ctx.roundRect(currentX - padding, pileY - padding, tableAreaWidth + padding * 2, tileHeight + padding * 2, 10);
         this.ctx.fill();
         this.ctx.stroke();
 
-        // Отрисовка заголовка "Сброс"
-        this.ctx.fillStyle = '#333';
-        this.ctx.font = 'bold 16px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('Сброс:', padding, pileY - padding * 2);
-
-        // Отрисовка фишек в сбросе
-        let currentX = padding;
-        this.discardPile.slice(-8).forEach((tile, idx) => {
-            const isSelected = this.selectedDiscard === this.discardPile.length - 8 + idx;
+        this.discardPile.slice(-10).forEach((tile, idx) => {
+            const isSelected = this.selectedDiscard === this.discardPile.length - 10 + idx;
             this.drawTile(tile, currentX, pileY, tileWidth, tileHeight, false, isSelected);
             currentX += tileWidth + 5;
         });
 
-        // Если в сбросе больше 8 фишек, показываем количество оставшихся
-        if (this.discardPile.length > 8) {
-            this.ctx.fillStyle = '#666';
+        if (this.discardPile.length > 10) {
+            this.ctx.fillStyle = '#ccc';
             this.ctx.font = '14px Arial';
             this.ctx.textAlign = 'left';
-            this.ctx.fillText(`+${this.discardPile.length - 8} еще`, currentX + 10, pileY + tileHeight / 2);
+            this.ctx.fillText(`+${this.discardPile.length - 10} more`, currentX + 10, pileY + tileHeight / 2);
         }
 
         this.ctx.restore();

@@ -8,26 +8,25 @@
 </head>
 <body>
     <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
         <div id="room-header">
             <span id="room-id"></span>
-            <button id="leave-room" style="display:none; margin-left: 20px;">Покинуть комнату</button>
+            <button id="leave-room" style="display:none;">Leave Room</button>
         </div>
         <div id="room-controls">
             <button id="create-room">Create Room</button>
             <button id="join-room">Join Room</button>
         </div>
-        <div id="game-info">
-            <div id="current-player"></div>
-            <div id="timer"></div>
-        </div>
-        <canvas id="gameCanvas"></canvas>
-        <div id="table-zone"></div>
+        <div id="game-info-details"></div>
+        <div id="score-board"></div>
+        <div id="pending-actions-panel"></div>
+
         <div id="player-controls">
-            <button id="draw-from-discard" style="display:none;">Взять из сброса</button>
-            <button id="draw-from-reserve" style="display:none;">Взять из резерва</button>
-            <button id="play-to-table" style="display:none;">Выложить на стол</button>
-            <button id="cancel-selection" style="display:none;">Отменить выбор</button>
-            <button id="end-turn" style="display:none;">Подтвердить ход</button>
+            <button id="draw-from-discard" style="display:none;">Draw from Discard</button>
+            <button id="draw-from-reserve" style="display:none;">Draw from Reserve</button>
+            <button id="play-to-table" style="display:none;">Play to Table</button>
+            <button id="cancel-selection" style="display:none;">Cancel</button>
+            <button id="end-turn" style="display:none;">Confirm Turn</button>
         </div>
     </div>
     <script src="src/js/game.js"></script>
