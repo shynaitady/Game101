@@ -335,7 +335,7 @@ button:disabled {
 .game-info-section {
     margin-bottom: 15px;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.95);
+    background: #1a1a1a;
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
