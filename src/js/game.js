@@ -2,10 +2,17 @@ class OkeyGame {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        
+        // Инициализируем базовые массивы
         this.players = [];
-        this.currentPlayerIndex = 0;
         this.tiles = [];
         this.selectedTiles = [];
+        this.pendingActions = [];
+        this.discardPile = [];
+        this.reservePile = [];
+        
+        // Инициализируем начальные значения
+        this.currentPlayerIndex = 0;
         this.selectedTableSet = null;
         this.selectedDiscard = null;
         this.turnTime = 30;
@@ -16,38 +23,102 @@ class OkeyGame {
         this.winner = null;
         this.scores = [0, 0, 0, 0];
         this.isDiscarding = false;
-        this.pendingActions = [];
+        this.openTile = null;
+        this.jokerTile = null;
+        
+        // Создаем начальных игроков
+        for (let i = 0; i < 4; i++) {
+            this.players[i] = {
+                id: `player${i+1}`,
+                name: `Player ${i+1}`,
+                tiles: [],
+                played: [],
+                hasInitialMeld: false,
+                isBot: i !== 0,
+                score: 0
+            };
+        }
+        
+        // Устанавливаем обработчики событий
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseleave', () => this.clearHover());
         this.canvas.addEventListener('click', (e) => this.handleTileClick(e));
+        
+        // Обновляем элементы управления
         this.updateControls();
     }
 
     initializeGame() {
+        // Создаем и перемешиваем фишки
         this.createTiles();
         this.shuffleTiles();
-        this.distributeTiles();
-        this.players.forEach((p, i) => { p.played = []; p.hasInitialMeld = false; p.score = 0; p.isBot = !!p.isBot; });
+        this.determineOpenTile();
+        
+        // Сбрасываем состояние игроков
+        this.players.forEach((player, i) => {
+            player.tiles = [];
+            player.played = [];
+            player.hasInitialMeld = false;
+            player.score = 0;
+        });
+        
+        // Сбрасываем состояние игры
+        this.currentPlayerIndex = 0;
         this.table = [];
         this.winner = null;
         this.scores = [0, 0, 0, 0];
         this.pendingActions = [];
+        this.discardPile = [];
+        this.selectedTiles = [];
+        this.selectedTableSet = null;
+        this.selectedDiscard = null;
+        this.isDiscarding = false;
+        
+        // Распределяем фишки
+        this.distributeTiles();
+        
+        // Обновляем отображение
         this.updateScores();
+        this.draw();
     }
 
     createTiles() {
         this.tiles = [];
         const colors = ['red', 'blue', 'black', 'yellow'];
         const numbers = Array.from({length: 13}, (_, i) => i + 1);
+        
         for (let k = 0; k < 2; k++) {
             colors.forEach(color => {
                 numbers.forEach(number => {
-                    this.tiles.push({ color, number });
+                    this.tiles.push({ color, number, isJoker: false });
                 });
             });
         }
+        
+        this.tiles.push({ color: 'joker', number: 0, isJoker: true });
+        this.tiles.push({ color: 'joker', number: 0, isJoker: true });
+    }
+
+    determineOpenTile() {
+        // Выбираем случайную фишку как открытую
+        const randomIndex = Math.floor(Math.random() * this.tiles.length);
+        this.openTile = this.tiles[randomIndex];
+        
+        // Определяем фальш-джокер (следующая по номеру того же цвета)
+        if (this.openTile.isJoker) {
+            // Если открыта джокер, то фальш-джокер тоже джокер
+            this.jokerTile = { color: 'joker', number: 0, isJoker: true };
+        } else if (this.openTile.number === 13) {
+            // Если открыта 13, то фальш-джокер - 1 того же цвета
+            this.jokerTile = { color: this.openTile.color, number: 1, isJoker: false };
+        } else {
+            this.jokerTile = { color: this.openTile.color, number: this.openTile.number + 1, isJoker: false };
+        }
+        
+        console.log(`Открытая фишка: ${this.openTile.color} ${this.openTile.number}`);
+        console.log(`Фальш-джокер: ${this.jokerTile.color} ${this.jokerTile.number}`);
     }
 
     shuffleTiles() {
@@ -58,52 +129,61 @@ class OkeyGame {
     }
 
     distributeTiles() {
+        // Отделяем резервные фишки
+        this.reservePile = this.tiles.slice(56);
+        this.tiles = this.tiles.slice(0, 56);
+        
+        // Распределяем фишки игрокам
         for (let i = 0; i < 4; i++) {
-            if (!this.players[i]) {
-                this.players[i] = { id: `player${i+1}`, name: `Player ${i+1}`, tiles: [], played: [], hasInitialMeld: false, isBot: i !== 0, score: 0 };
-            }
-            this.players[i].tiles = this.tiles.slice(i * 14, (i + 1) * 14);
-            this.players[i].played = [];
-            this.players[i].hasInitialMeld = false;
+            const tilesCount = i === 0 ? 15 : 14;
+            const startIndex = i === 0 ? 0 : 15 + (i - 1) * 14;
+            this.players[i].tiles = this.tiles.slice(startIndex, startIndex + tilesCount);
         }
     }
 
     updateScores() {
         for (let i = 0; i < 4; i++) {
-            this.scores[i] = this.players[i].tiles.reduce((sum, t) => sum + t.number, 0);
+            this.scores[i] = this.players[i].tiles.reduce((sum, t) => {
+                if (t.isJoker) {
+                    return sum + 25; // Джокер = 25 штрафных очков
+                } else {
+                    return sum + t.number; // Обычная фишка = её числовое значение
+                }
+            }, 0);
             this.players[i].score = this.scores[i];
         }
         this.drawScores();
     }
 
     drawScores() {
+        // Проверяем инициализацию игроков
+        if (!this.players || this.players.length === 0) return;
+
         let scoreDiv = document.getElementById('score-board');
         if (!scoreDiv) {
             scoreDiv = document.createElement('div');
             scoreDiv.id = 'score-board';
-            scoreDiv.style.position = 'fixed';
-            scoreDiv.style.top = '10px';
-            scoreDiv.style.right = '10px';
-            scoreDiv.style.background = 'rgba(255,255,255,0.95)';
-            scoreDiv.style.padding = '10px 20px';
-            scoreDiv.style.borderRadius = '8px';
-            scoreDiv.style.fontSize = '18px';
-            scoreDiv.style.zIndex = 100;
             document.body.appendChild(scoreDiv);
         }
-        let html = '<b>Очки игроков:</b><br>';
-        for (let i = 0; i < 4; i++) {
-            html += `${this.players[i].name}: <b>${this.scores[i]}</b><br>`;
+        
+        let html = '<div class="game-info-section">';
+        html += '<div class="info-row"><b>Очки игроков:</b></div>';
+        for (let i = 0; i < this.players.length; i++) {
+            if (this.players[i]) {
+                html += `<div class="info-row">${this.players[i].name}: <b>${this.scores[i]}</b></div>`;
+            }
         }
-        if (this.winner !== null) {
-            html += `<hr><b>Победитель: ${this.players[this.winner].name}</b>`;
+        if (this.winner !== null && this.players[this.winner]) {
+            html += `<div class="info-row" style="margin-top: 10px; color: #4CAF50"><b>Победитель: ${this.players[this.winner].name}</b></div>`;
         }
+        html += '</div>';
+        
         scoreDiv.innerHTML = html;
     }
 
     checkWin() {
         for (let i = 0; i < 4; i++) {
-            if (this.players[i].tiles.length === 0) {
+            if (this.players[i].tiles.length === 0 && this.players[i].hasInitialMeld) {
                 this.winner = i;
                 this.updateScores();
                 setTimeout(() => alert(`Победитель: ${this.players[i].name}!`), 100);
@@ -116,8 +196,18 @@ class OkeyGame {
     startTurn() {
         if (this.timer) clearInterval(this.timer);
         if (this.checkWin()) return;
+        
         const currentPlayer = this.players[this.currentPlayerIndex];
         document.getElementById('current-player').textContent = `Current Player: ${currentPlayer.name}`;
+        
+        // Игрок должен взять фишку в начале хода
+        if (currentPlayer.isBot) {
+            this.drawTileForBot();
+        } else {
+            // Для человеческого игрока показываем кнопки выбора
+            this.showDrawOptions();
+        }
+        
         this.turnTime = 30;
         this.updateTimer();
         this.updateControls();
@@ -133,36 +223,206 @@ class OkeyGame {
                 this.endTurn();
             }
         }, 1000);
+        
         if (currentPlayer.isBot) {
             setTimeout(() => this.botMove(), 1000);
         }
     }
 
+    drawTileForBot() {
+        const currentPlayer = this.players[this.currentPlayerIndex];
+        
+        // Бот предпочитает брать из сброса, если там есть фишки
+        if (this.discardPile.length > 0) {
+            const drawnTile = this.discardPile.pop();
+            currentPlayer.tiles.push(drawnTile);
+            console.log(`${currentPlayer.name} взял фишку из сброса:`, drawnTile);
+        }
+        // Если сброс пуст, берем из резерва
+        else if (this.reservePile.length > 0) {
+            const drawnTile = this.reservePile.pop();
+            currentPlayer.tiles.push(drawnTile);
+            console.log(`${currentPlayer.name} взял фишку из резерва:`, drawnTile);
+        }
+        // Если резерв тоже пуст, игра заканчивается вничью
+        else {
+            console.log('Резерв пуст - игра заканчивается вничью');
+            this.endGameInDraw();
+        }
+    }
+
+    showDrawOptions() {
+        // Показываем кнопки для выбора источника фишки
+        const drawDiscardBtn = document.getElementById('draw-from-discard');
+        const drawReserveBtn = document.getElementById('draw-from-reserve');
+        
+        if (this.discardPile.length > 0) {
+            drawDiscardBtn.style.display = '';
+            drawDiscardBtn.textContent = `Взять из сброса (${this.discardPile.length})`;
+        } else {
+            drawDiscardBtn.style.display = 'none';
+        }
+        
+        if (this.reservePile.length > 0) {
+            drawReserveBtn.style.display = '';
+            drawReserveBtn.textContent = `Взять из резерва (${this.reservePile.length})`;
+        } else {
+            drawReserveBtn.style.display = 'none';
+        }
+    }
+
+    drawFromReserve() {
+        if (this.currentPlayerIndex !== 0) return;
+        if (this.reservePile.length === 0) {
+            this.endGameInDraw();
+            return;
+        }
+        
+        const drawnTile = this.reservePile.pop();
+        this.players[0].tiles.push(drawnTile);
+        console.log('Игрок взял фишку из резерва:', drawnTile);
+        
+        this.updateScores();
+        this.draw();
+    }
+
+    drawFromDiscard() {
+        if (this.currentPlayerIndex !== 0) return;
+        if (this.discardPile.length === 0) {
+            alert('Сброс пуст!');
+            return;
+        }
+        
+        const drawnTile = this.discardPile.pop();
+        this.players[0].tiles.push(drawnTile);
+        console.log('Игрок взял фишку из сброса:', drawnTile);
+        
+        // Скрываем кнопку взятия из сброса
+        document.getElementById('draw-from-discard').style.display = 'none';
+        
+        this.updateScores();
+        this.draw();
+    }
+
+    endGameInDraw() {
+        this.winner = null;
+        this.updateScores();
+        setTimeout(() => alert('Игра завершена вничью! Резерв пуст.'), 100);
+        return true;
+    }
+
     botMove() {
         const bot = this.players[this.currentPlayerIndex];
-        // Попробовать выложить сет или ряд
-        let found = false;
-        for (let i = 0; i < bot.tiles.length - 2; i++) {
-            for (let j = i + 1; j < bot.tiles.length - 1; j++) {
-                for (let k = j + 1; k < bot.tiles.length; k++) {
-                    const comb = [bot.tiles[i], bot.tiles[j], bot.tiles[k]];
-                    if (this.isValidCombination(comb)) {
-                        this.table.push([...comb]);
-                        [i, j, k].sort((a, b) => b - a).forEach(idx => bot.tiles.splice(idx, 1));
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) break;
+        
+        // Бот пытается найти комбинации для выкладывания
+        let foundCombination = false;
+        
+        // Если бот еще не делал первый выход, ищет комбинации на 101+ очков
+        if (!bot.hasInitialMeld) {
+            const combinations = this.findValidCombinations(bot.tiles);
+            const validInitialMeld = this.findInitialMeld(combinations);
+            
+            if (validInitialMeld) {
+                // Выкладываем комбинации для первого выхода
+                validInitialMeld.forEach(comb => {
+                    this.table.push([...comb]);
+                });
+                // Удаляем выложенные фишки
+                validInitialMeld.flat().forEach(tile => {
+                    const index = bot.tiles.findIndex(t => t.color === tile.color && t.number === tile.number);
+                    if (index !== -1) bot.tiles.splice(index, 1);
+                });
+                bot.hasInitialMeld = true;
+                foundCombination = true;
             }
-            if (found) break;
+        } else {
+            // Если уже вышел, ищет любые валидные комбинации
+            for (let i = 0; i < bot.tiles.length - 2; i++) {
+                for (let j = i + 1; j < bot.tiles.length - 1; j++) {
+                    for (let k = j + 1; k < bot.tiles.length; k++) {
+                        const comb = [bot.tiles[i], bot.tiles[j], bot.tiles[k]];
+                        if (this.isValidCombination(comb)) {
+                            this.table.push([...comb]);
+                            [i, j, k].sort((a, b) => b - a).forEach(idx => bot.tiles.splice(idx, 1));
+                            foundCombination = true;
+                            break;
+                        }
+                    }
+                    if (foundCombination) break;
+                }
+                if (foundCombination) break;
+            }
         }
-        // Если не смог — сбросить первую фишку
-        if (!found && bot.tiles.length > 0) {
-            bot.tiles.splice(0, 1);
+        
+        // Сбрасываем одну фишку в конце хода
+        if (bot.tiles.length > 0) {
+            const discardedTile = bot.tiles.splice(0, 1)[0];
+            this.discardPile.push(discardedTile);
+            console.log(`${bot.name} сбросил фишку:`, discardedTile);
         }
+        
         this.updateScores();
         this.endTurn();
+    }
+
+    findValidCombinations(tiles) {
+        const combinations = [];
+        
+        // Ищем все возможные комбинации из 3+ фишек
+        for (let size = 3; size <= tiles.length; size++) {
+            const combs = this.getCombinations(tiles, size);
+            combs.forEach(comb => {
+                if (this.isValidCombination(comb)) {
+                    combinations.push(comb);
+                }
+            });
+        }
+        
+        return combinations;
+    }
+
+    getCombinations(tiles, size) {
+        const combinations = [];
+        
+        function backtrack(start, current) {
+            if (current.length === size) {
+                combinations.push([...current]);
+                return;
+            }
+            
+            for (let i = start; i < tiles.length; i++) {
+                current.push(tiles[i]);
+                backtrack(i + 1, current);
+                current.pop();
+            }
+        }
+        
+        backtrack(0, []);
+        return combinations;
+    }
+
+    findInitialMeld(combinations) {
+        // Ищем комбинации, которые дают 101+ очков
+        const validMeld = [];
+        let totalScore = 0;
+        
+        // Простая эвристика: берем комбинации с наибольшими очками
+        const sortedCombinations = combinations.sort((a, b) => {
+            const scoreA = a.reduce((sum, t) => sum + t.number, 0);
+            const scoreB = b.reduce((sum, t) => sum + t.number, 0);
+            return scoreB - scoreA;
+        });
+        
+        for (const comb of sortedCombinations) {
+            const score = comb.reduce((sum, t) => sum + t.number, 0);
+            if (totalScore + score <= 150) { // Ограничиваем общее количество очков
+                validMeld.push(comb);
+                totalScore += score;
+                if (totalScore >= 101) break;
+            }
+        }
+        
+        return totalScore >= 101 ? validMeld : null;
     }
 
     endTurn() {
@@ -175,11 +435,29 @@ class OkeyGame {
 
     isValidCombination(tiles) {
         if (tiles.length < 3) return false;
-        const allSameNumber = tiles.every(t => t.number === tiles[0].number);
-        const allUniqueColors = new Set(tiles.map(t => t.color)).size === tiles.length;
+        
+        // Проверяем, есть ли джокеры в комбинации
+        const jokers = tiles.filter(t => t.isJoker);
+        const normalTiles = tiles.filter(t => !t.isJoker);
+        
+        // Если все фишки - джокеры, это валидная комбинация
+        if (normalTiles.length === 0) return true;
+        
+        // Проверяем, есть ли фальш-джокер (его можно использовать только как своё значение)
+        const falseJoker = normalTiles.find(t => 
+            t.color === this.jokerTile.color && 
+            t.number === this.jokerTile.number && 
+            !t.isJoker
+        );
+        
+        // Проверяем сет (одинаковые числа, разные цвета)
+        const allSameNumber = normalTiles.every(t => t.number === normalTiles[0].number);
+        const allUniqueColors = new Set(normalTiles.map(t => t.color)).size === normalTiles.length;
         if (allSameNumber && allUniqueColors) return true;
-        const allSameColor = tiles.every(t => t.color === tiles[0].color);
-        const sorted = [...tiles].sort((a, b) => a.number - b.number);
+        
+        // Проверяем ряд (последовательные числа, один цвет)
+        const allSameColor = normalTiles.every(t => t.color === normalTiles[0].color);
+        const sorted = [...normalTiles].sort((a, b) => a.number - b.number);
         let isSequence = true;
         for (let i = 1; i < sorted.length; i++) {
             if (sorted[i].number !== sorted[i - 1].number + 1) {
@@ -188,184 +466,229 @@ class OkeyGame {
             }
         }
         if (allSameColor && isSequence) return true;
+        
         return false;
     }
 
     draw() {
+        if (!this.ctx) return;
+        
+        // Очищаем canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.tileRects = [];
-        this.players.forEach((player, index) => {
-            this.drawPlayerTiles(player, index);
-            this.drawPlayerName(player, index);
-        });
-        this.drawTable();
+        
+        // Рисуем фон
+        this.ctx.fillStyle = '#f0f0f0';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Проверяем инициализацию игроков перед отрисовкой
+        if (this.players && this.players.length > 0) {
+            // Отрисовываем стол с комбинациями
+            this.drawTable();
+            
+            // Отрисовываем сброс
+            this.drawDiscardPile();
+            
+            // Отрисовываем фишки игроков
+            this.players.forEach((player, index) => {
+                if (player) {
+                    this.drawPlayerTiles(player, index);
+                }
+            });
+            
+            // Обновляем информацию об игре
+            this.drawGameInfo();
+            
+            // Обновляем информацию о счете
+            this.drawScores();
+            
+            // Обновляем информацию о действиях
+            this.drawPendingActions();
+        }
     }
 
     drawPlayerTiles(player, index) {
-        if (!player.tiles) return;
+        // Проверяем наличие фишек у игрока
+        if (!player || !player.tiles) return;
+
         const tileWidth = 40;
         const tileHeight = 60;
-        const padding = 5;
-        // Highlight current player
-        if (index === this.currentPlayerIndex) {
-            this.ctx.save();
-            this.ctx.strokeStyle = 'green';
-            this.ctx.lineWidth = 5;
-            let x, y, w, h;
-            if (index === 0) {
-                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 - 10;
-                y = this.canvas.height - tileHeight - padding - 10;
-                w = player.tiles.length * (tileWidth + padding) + 20;
-                h = tileHeight + 20;
-            } else if (index === 1) {
-                x = this.canvas.width - tileWidth - padding - 10;
-                y = 0;
-                w = tileWidth + 20;
-                h = this.canvas.height;
-            } else if (index === 2) {
-                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 - 10;
-                y = padding - 10;
-                w = player.tiles.length * (tileWidth + padding) + 20;
-                h = tileHeight + 20;
-            } else {
-                x = padding - 10;
-                y = 0;
-                w = tileWidth + 20;
-                h = this.canvas.height;
-            }
-            this.ctx.strokeRect(x, y, w, h);
-            this.ctx.restore();
-        }
-        // Подсветка возможных комбинаций
-        let possible = [];
-        if (index === 0) {
-            if (this.selectedTiles.length === 1) {
-                // Подсветить все карты, которые с выбранной могут дать валидную комбинацию
-                for (let i = 0; i < player.tiles.length; i++) {
-                    if (i === this.selectedTiles[0]) continue;
-                    for (let j = 0; j < player.tiles.length; j++) {
-                        if (j === this.selectedTiles[0] || j === i) continue;
-                        const comb = [player.tiles[this.selectedTiles[0]], player.tiles[i], player.tiles[j]];
-                        if (this.isValidCombination(comb)) {
-                            possible.push(i, j);
-                        }
-                    }
-                }
-                possible = Array.from(new Set(possible));
-            } else if (this.selectedTiles.length === 2) {
-                // Подсветить все третьи карты, которые с двумя выбранными дадут валидную комбинацию
-                for (let i = 0; i < player.tiles.length; i++) {
-                    if (this.selectedTiles.includes(i)) continue;
-                    const comb = [player.tiles[this.selectedTiles[0]], player.tiles[this.selectedTiles[1]], player.tiles[i]];
-                    if (this.isValidCombination(comb)) {
-                        possible.push(i);
-                    }
-                }
-            } else if (this.selectedTiles.length === 0 && this.lastHoveredTileIndex !== null) {
-                // Подсветить все возможные пары для наведения
-                for (let i = 0; i < player.tiles.length; i++) {
-                    if (i === this.lastHoveredTileIndex) continue;
-                    for (let j = 0; j < player.tiles.length; j++) {
-                        if (j === this.lastHoveredTileIndex || j === i) continue;
-                        const comb = [player.tiles[this.lastHoveredTileIndex], player.tiles[i], player.tiles[j]];
-                        if (this.isValidCombination(comb)) {
-                            possible.push(i, j);
-                        }
-                    }
-                }
-                possible = Array.from(new Set(possible));
-            }
-        }
-        player.tiles.forEach((tile, tileIndex) => {
-            let x, y;
-            if (index === 0) {
-                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 + tileIndex * (tileWidth + padding);
-                y = this.canvas.height - tileHeight - padding;
-            } else if (index === 1) {
-                x = this.canvas.width - tileWidth - padding;
-                const totalHeight = this.canvas.height - tileHeight - 2 * padding;
-                const step = player.tiles.length > 1 ? totalHeight / (player.tiles.length - 1) : 0;
-                y = padding + tileIndex * step;
-            } else if (index === 2) {
-                x = this.canvas.width / 2 - (player.tiles.length * (tileWidth + padding)) / 2 + tileIndex * (tileWidth + padding);
-                y = padding;
-            } else {
+        const padding = 10;
+        const margin = 20;
+        
+        // Вычисляем позиции для каждого игрока
+        let x, y, rotation = 0;
+        const isCurrentPlayer = index === this.currentPlayerIndex;
+        
+        switch(index) {
+            case 0: // Нижний игрок (человек)
                 x = padding;
-                const totalHeight = this.canvas.height - tileHeight - 2 * padding;
-                const step = player.tiles.length > 1 ? totalHeight / (player.tiles.length - 1) : 0;
-                y = padding + tileIndex * step;
+                y = this.canvas.height - tileHeight - padding;
+                break;
+            case 1: // Правый игрок
+                x = this.canvas.width - tileHeight - padding;
+                y = padding;
+                rotation = 90;
+                break;
+            case 2: // Верхний игрок
+                x = padding;
+                y = padding;
+                rotation = 0;
+                break;
+            case 3: // Левый игрок
+                x = padding;
+                y = padding;
+                rotation = -90;
+                break;
+        }
+
+        this.ctx.save();
+
+        // Рисуем фон для зоны игрока
+        this.ctx.fillStyle = isCurrentPlayer ? 'rgba(220, 255, 220, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+        this.ctx.strokeStyle = isCurrentPlayer ? '#4CAF50' : '#ccc';
+        this.ctx.lineWidth = 2;
+
+        if (index === 0) {
+            // Для человека-игрока рисуем горизонтальную зону
+            this.ctx.beginPath();
+            this.ctx.roundRect(0, y - padding, this.canvas.width, tileHeight + padding * 2, 10);
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Отрисовка имени игрока
+            this.ctx.fillStyle = '#333';
+            this.ctx.font = 'bold 16px Arial';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(`${player.name}${isCurrentPlayer ? ' (Ваш ход)' : ''}`, padding, y - padding * 2);
+
+            // Отрисовка фишек
+            let currentX = padding;
+            player.tiles.forEach((tile, idx) => {
+                const isHovered = this.hoveredTile === idx;
+                const isSelected = this.selectedTiles.includes(idx);
+                this.drawTile(tile, currentX, y, tileWidth, tileHeight, isHovered, isSelected);
+                currentX += tileWidth + 5;
+            });
+        } else {
+            // Для ботов рисуем вертикальные зоны
+            const zoneWidth = tileHeight + padding * 2;
+            const zoneHeight = this.canvas.height * 0.6;
+            
+            this.ctx.translate(x, y);
+            this.ctx.rotate((rotation * Math.PI) / 180);
+            
+            this.ctx.beginPath();
+            this.ctx.roundRect(0, 0, zoneWidth, zoneHeight, 10);
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Отрисовка имени игрока
+            this.ctx.fillStyle = '#333';
+            this.ctx.font = 'bold 16px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(player.name, zoneWidth / 2, -padding);
+            
+            // Отрисовка фишек (рубашкой вверх)
+            let currentY = padding;
+            for (let i = 0; i < player.tiles.length; i++) {
+                this.drawTileBack(padding, currentY, tileWidth, tileHeight);
+                currentY += tileHeight / 3;
             }
-            // Save rect for selection (только для игрока 0)
-            if (index === 0) {
-                this.tileRects[tileIndex] = { x, y, w: tileWidth, h: tileHeight };
-            }
-            // Подсветка
-            let isHovered = (index === 0 && tileIndex === this.lastHoveredTileIndex);
-            let isSelected = (index === 0 && this.selectedTiles.includes(tileIndex));
-            let isPossible = (index === 0 && possible.includes(tileIndex));
-            let isValid = false, isInvalid = false;
-            if (index === 0 && this.selectedTiles.length >= 3) {
-                const comb = this.selectedTiles.map(i => player.tiles[i]);
-                if (this.isValidCombination(comb)) isValid = true;
-                else isInvalid = true;
-            }
-            this.drawTile(tile, x, y, tileWidth, tileHeight, isHovered, isSelected, isPossible, isValid, isInvalid);
-        });
+        }
+
+        this.ctx.restore();
     }
 
-    drawPlayerName(player, index) {
+    drawTileBack(x, y, width, height) {
         this.ctx.save();
-        this.ctx.font = 'bold 20px Arial';
-        this.ctx.fillStyle = (index === this.currentPlayerIndex) ? 'green' : 'black';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        let x, y;
-        if (index === 0) {
-            x = this.canvas.width / 2;
-            y = this.canvas.height - 20;
-        } else if (index === 1) {
-            x = this.canvas.width - 40;
-            y = this.canvas.height / 2;
-        } else if (index === 2) {
-            x = this.canvas.width / 2;
-            y = 20;
-        } else {
-            x = 40;
-            y = this.canvas.height / 2;
+        
+        // Фон рубашки
+        this.ctx.fillStyle = '#e0e0e0';
+        this.ctx.strokeStyle = '#999';
+        this.ctx.lineWidth = 2;
+        
+        // Рисуем рубашку
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, width, height, 5);
+        this.ctx.fill();
+        this.ctx.stroke();
+        
+        // Узор на рубашке
+        this.ctx.strokeStyle = '#ccc';
+        this.ctx.lineWidth = 1;
+        
+        // Диагональные линии
+        for (let i = -height; i < width + height; i += 10) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + i, y);
+            this.ctx.lineTo(x + i + height, y + height);
+            this.ctx.stroke();
         }
-        this.ctx.fillText(player.name, x, y);
+        
         this.ctx.restore();
     }
 
     drawTile(tile, x, y, width, height, isHovered = false, isSelected = false, isPossible = false, isValid = false, isInvalid = false) {
         this.ctx.save();
-        if (isInvalid) {
-            this.ctx.strokeStyle = '#ff4444';
-            this.ctx.lineWidth = 4;
-        } else if (isValid) {
-            this.ctx.strokeStyle = '#4CAF50';
-            this.ctx.lineWidth = 4;
-        } else if (isSelected) {
+        
+        // Фон фишки
+        this.ctx.fillStyle = '#fff';
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 2;
+        
+        // Подсветка выбранной фишки
+        if (isSelected) {
+            this.ctx.shadowColor = '#FF9800';
+            this.ctx.shadowBlur = 15;
             this.ctx.strokeStyle = '#FF9800';
-            this.ctx.lineWidth = 4;
-        } else if (isPossible) {
-            this.ctx.strokeStyle = '#FFD600';
             this.ctx.lineWidth = 3;
-        } else if (isHovered) {
+        }
+        
+        // Подсветка при наведении
+        if (isHovered && !isSelected) {
+            this.ctx.shadowColor = '#2196F3';
+            this.ctx.shadowBlur = 10;
             this.ctx.strokeStyle = '#2196F3';
-            this.ctx.lineWidth = 3;
-        } else {
-            this.ctx.strokeStyle = 'black';
             this.ctx.lineWidth = 2;
         }
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(x, y, width, height);
-        this.ctx.strokeRect(x, y, width, height);
-        this.ctx.fillStyle = tile.color;
-        this.ctx.font = '20px Arial';
+        
+        // Подсветка возможной комбинации
+        if (isPossible) {
+            this.ctx.shadowColor = '#4CAF50';
+            this.ctx.shadowBlur = 10;
+            this.ctx.strokeStyle = '#4CAF50';
+            this.ctx.lineWidth = 2;
+        }
+        
+        // Подсветка валидной/невалидной комбинации
+        if (isValid) {
+            this.ctx.shadowColor = '#4CAF50';
+            this.ctx.shadowBlur = 15;
+            this.ctx.strokeStyle = '#4CAF50';
+            this.ctx.lineWidth = 3;
+        }
+        if (isInvalid) {
+            this.ctx.shadowColor = '#f44336';
+            this.ctx.shadowBlur = 15;
+            this.ctx.strokeStyle = '#f44336';
+            this.ctx.lineWidth = 3;
+        }
+        
+        // Рисуем фишку
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, width, height, 5);
+        this.ctx.fill();
+        this.ctx.stroke();
+        
+        // Текст фишки
+        this.ctx.fillStyle = tile.color === 'joker' ? '#000' : tile.color;
+        this.ctx.font = `bold ${Math.floor(height * 0.4)}px Arial`;
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(tile.number.toString(), x + width/2, y + height/2);
+        
+        let displayText = tile.isJoker ? 'J' : tile.number.toString();
+        this.ctx.fillText(displayText, x + width / 2, y + height / 2);
+        
         this.ctx.restore();
     }
 
@@ -419,16 +742,40 @@ class OkeyGame {
     }
 
     updateControls() {
-        // Управление видимостью кнопок
+        const drawDiscardBtn = document.getElementById('draw-from-discard');
+        const drawReserveBtn = document.getElementById('draw-from-reserve');
         const playBtn = document.getElementById('play-to-table');
         const cancelBtn = document.getElementById('cancel-selection');
         const endBtn = document.getElementById('end-turn');
+        
+        // Проверяем, что игроки инициализированы
+        if (!this.players || this.players.length === 0 || !this.players[0]) {
+            drawDiscardBtn.style.display = 'none';
+            drawReserveBtn.style.display = 'none';
+            playBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            endBtn.style.display = 'none';
+            return;
+        }
+        
         if (this.currentPlayerIndex === 0) {
+            // Показываем кнопки взятия фишек только в начале хода
+            const hasDrawnTile = this.players[0].tiles.length > (this.currentPlayerIndex === 0 ? 15 : 14);
+            
+            if (!hasDrawnTile) {
+                this.showDrawOptions();
+            } else {
+                drawDiscardBtn.style.display = 'none';
+                drawReserveBtn.style.display = 'none';
+            }
+            
             const tilesToPlay = this.selectedTiles.map(i => this.players[0].tiles[i]);
             playBtn.style.display = (this.selectedTiles.length >= 3 && this.isValidCombination(tilesToPlay)) ? '' : 'none';
             cancelBtn.style.display = (this.selectedTiles.length > 0 || this.table.length) ? '' : 'none';
             endBtn.style.display = (this.table.length > 0) ? '' : 'none';
         } else {
+            drawDiscardBtn.style.display = 'none';
+            drawReserveBtn.style.display = 'none';
             playBtn.style.display = 'none';
             cancelBtn.style.display = 'none';
             endBtn.style.display = 'none';
@@ -454,31 +801,133 @@ class OkeyGame {
     }
 
     drawTable() {
-        // В центре — все комбинации
-        const tableZone = document.getElementById('table-zone');
-        if (tableZone) tableZone.innerHTML = '';
-        const centerY = this.canvas.height / 2;
-        let x = this.canvas.width / 2 - (this.table.length * 60) / 2;
-        for (let i = 0; i < this.table.length; i++) {
-            const comb = this.table[i];
-            for (let j = 0; j < comb.length; j++) {
-                this.drawTile(comb[j], x + j * 30, centerY, 28, 40);
+        const tableY = this.canvas.height * 0.4;
+        const tileHeight = 60;
+        const tileWidth = 40;
+        const padding = 10;
+        let currentX = padding;
+        let currentY = tableY;
+
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.strokeStyle = '#ccc';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(0, tableY - padding, this.canvas.width, tileHeight * 2 + padding * 2, 10);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Отрисовка заголовка "На столе"
+        this.ctx.fillStyle = '#333';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('На столе:', padding, tableY - padding * 2);
+
+        // Отрисовка комбинаций
+        this.table.forEach((combination, combIdx) => {
+            // Проверяем, нужно ли перейти на новую строку
+            if (currentX + (combination.length * (tileWidth + 5)) > this.canvas.width - padding) {
+                currentX = padding;
+                currentY += tileHeight + padding;
             }
-            x += comb.length * 30 + 20;
+
+            // Отрисовка фона для комбинации
+            this.ctx.fillStyle = 'rgba(240, 240, 240, 0.9)';
+            this.ctx.strokeStyle = '#ddd';
+            this.ctx.beginPath();
+            this.ctx.roundRect(
+                currentX - 5,
+                currentY - 5,
+                combination.length * (tileWidth + 5) + 10,
+                tileHeight + 10,
+                5
+            );
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Отрисовка фишек комбинации
+            combination.forEach((tile, tileIdx) => {
+                this.drawTile(
+                    tile,
+                    currentX + tileIdx * (tileWidth + 5),
+                    currentY,
+                    tileWidth,
+                    tileHeight,
+                    false,
+                    this.selectedTableSet === combIdx
+                );
+            });
+
+            currentX += combination.length * (tileWidth + 5) + padding;
+        });
+
+        this.ctx.restore();
+    }
+
+    drawDiscardPile() {
+        const pileY = this.canvas.height * 0.7;
+        const tileHeight = 60;
+        const tileWidth = 40;
+        const padding = 10;
+
+        this.ctx.save();
+        
+        // Рисуем фон для зоны сброса
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.strokeStyle = '#ccc';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.roundRect(0, pileY - padding, this.canvas.width, tileHeight + padding * 2, 10);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Отрисовка заголовка "Сброс"
+        this.ctx.fillStyle = '#333';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('Сброс:', padding, pileY - padding * 2);
+
+        // Отрисовка фишек в сбросе
+        let currentX = padding;
+        this.discardPile.slice(-8).forEach((tile, idx) => {
+            const isSelected = this.selectedDiscard === this.discardPile.length - 8 + idx;
+            this.drawTile(tile, currentX, pileY, tileWidth, tileHeight, false, isSelected);
+            currentX += tileWidth + 5;
+        });
+
+        // Если в сбросе больше 8 фишек, показываем количество оставшихся
+        if (this.discardPile.length > 8) {
+            this.ctx.fillStyle = '#666';
+            this.ctx.font = '14px Arial';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(`+${this.discardPile.length - 8} еще`, currentX + 10, pileY + tileHeight / 2);
         }
+
+        this.ctx.restore();
     }
 
     updateTimer() {
+        const timerElement = document.getElementById('timer');
+        if (timerElement) {
+            timerElement.textContent = `${this.turnTime}s`;
+            timerElement.style.color = this.turnTime <= 10 ? '#ff4444' : '#333';
+        }
         document.getElementById('timer').textContent = 
             `Time remaining: ${this.turnTime}s`;
     }
 
     resizeCanvas() {
-        this.canvas.width = this.canvas.offsetWidth;
-        this.canvas.height = this.canvas.offsetHeight;
+        const container = document.getElementById('game-container');
+        const containerWidth = container.clientWidth;
+        const containerHeight = window.innerHeight - 200; // Оставляем место для UI элементов
+
+        this.canvas.width = containerWidth - 40; // Отступы по бокам
+        this.canvas.height = containerHeight;
+
+        // Перерисовываем игру после изменения размера
+        this.draw();
     }
 
-    // Добавить выбранные карты как новую комбинацию в pendingActions
     addPendingCombination() {
         const tilesToPlay = this.selectedTiles.map(i => this.players[0].tiles[i]);
         if (tilesToPlay.length < 3 || !this.isValidCombination(tilesToPlay)) return;
@@ -488,7 +937,6 @@ class OkeyGame {
         this.drawPendingActions();
     }
 
-    // Добавить выбранную карту к выбранному набору на столе
     addPendingToSet() {
         if (this.selectedTiles.length !== 1 || this.selectedTableSet == null) return;
         this.pendingActions.push({ type: 'add', tile: this.selectedTiles[0], setIdx: this.selectedTableSet });
@@ -498,18 +946,14 @@ class OkeyGame {
         this.drawPendingActions();
     }
 
-    // Удалить действие из pendingActions
     removePendingAction(idx) {
         this.pendingActions.splice(idx, 1);
         this.updateControls();
         this.drawPendingActions();
     }
 
-    // Подтвердить ход: применить все pendingActions, проверить первый выход, сбросить фишку
     confirmTurn() {
-        // Собираем все новые комбинации
         const newCombs = this.pendingActions.filter(a => a.type === 'comb').map(a => a.tiles.map(i => this.players[0].tiles[i]));
-        // Проверка первого выхода
         const player = this.players[0];
         if (!player.hasInitialMeld) {
             const sum = newCombs.reduce((acc, comb) => acc + comb.reduce((s, t) => s + t.number, 0), 0);
@@ -519,22 +963,21 @@ class OkeyGame {
             }
             player.hasInitialMeld = true;
         }
-        // Применяем все действия
-        // 1. Выложить новые комбинации
+        
         for (const action of this.pendingActions) {
             if (action.type === 'comb') {
                 const combTiles = action.tiles.map(i => this.players[0].tiles[i]);
                 this.table.push(combTiles);
             }
         }
-        // 2. Добавить к наборам
+        
         for (const action of this.pendingActions) {
             if (action.type === 'add') {
                 const tile = this.players[0].tiles[action.tile];
                 this.table[action.setIdx].push(tile);
             }
         }
-        // 3. Удалить все сыгранные карты из руки
+        
         let toRemove = [];
         for (const action of this.pendingActions) {
             if (action.type === 'comb') toRemove.push(...action.tiles);
@@ -545,7 +988,8 @@ class OkeyGame {
         this.pendingActions = [];
         this.updateScores();
         this.draw();
-        // Сброс одной фишки
+        
+        // Сброс одной фишки в конце хода
         if (this.players[0].tiles.length > 0) {
             this.isDiscarding = true;
             this.updateControls();
@@ -555,44 +999,105 @@ class OkeyGame {
         }
     }
 
-    // Сбросить выбранную фишку
     discardTile(idx) {
         if (!this.isDiscarding) return;
-        this.players[0].tiles.splice(idx, 1);
+        const discardedTile = this.players[0].tiles.splice(idx, 1)[0];
+        this.discardPile.push(discardedTile);
+        console.log(`Игрок сбросил фишку:`, discardedTile);
         this.isDiscarding = false;
         this.updateScores();
         this.draw();
         this.endTurn();
     }
 
-    // Визуализация pendingActions
     drawPendingActions() {
-        let panel = document.getElementById('pending-actions-panel');
-        if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'pending-actions-panel';
-            panel.style.position = 'fixed';
-            panel.style.bottom = '80px';
-            panel.style.left = '50%';
-            panel.style.transform = 'translateX(-50%)';
-            panel.style.background = 'rgba(255,255,255,0.97)';
-            panel.style.padding = '10px 20px';
-            panel.style.borderRadius = '8px';
-            panel.style.fontSize = '16px';
-            panel.style.zIndex = 100;
-            document.body.appendChild(panel);
+        let actionsDiv = document.getElementById('pending-actions-panel');
+        if (!actionsDiv) {
+            actionsDiv = document.createElement('div');
+            actionsDiv.id = 'pending-actions-panel';
+            document.body.appendChild(actionsDiv);
         }
-        let html = '<b>Ваши действия за ход:</b><br>';
-        this.pendingActions.forEach((a, idx) => {
-            if (a.type === 'comb') {
-                html += `Комбинация: [${a.tiles.map(i => this.players[0].tiles[i]?.number).join(', ')}] <button onclick="window.okeyGame.removePendingAction(${idx})">✖</button><br>`;
-            } else if (a.type === 'add') {
-                html += `Добавить к набору #${a.setIdx+1}: ${this.players[0].tiles[a.tile]?.number} <button onclick="window.okeyGame.removePendingAction(${idx})">✖</button><br>`;
-            }
+
+        if (this.pendingActions.length === 0) {
+            actionsDiv.style.display = 'none';
+            return;
+        }
+
+        let html = '<div class="pending-actions-header">Ожидающие действия:</div>';
+        this.pendingActions.forEach((action, idx) => {
+            html += '<div class="pending-action-row">';
+            html += `<span class="action-description">${action.type === 'combination' ? 'Комбинация' : 'Добавление к набору'}: `;
+            action.tiles.forEach(tile => {
+                html += `<span class="tile-number" style="color: ${tile.color}">${tile.isJoker ? 'J' : tile.number}</span>`;
+            });
+            html += '</span>';
+            html += `<button class="remove-action" onclick="game.removePendingAction(${idx})">✖</button>`;
+            html += '</div>';
         });
-        panel.innerHTML = html;
+
+        actionsDiv.innerHTML = html;
+        actionsDiv.style.display = 'block';
+    }
+
+    drawGameInfo() {
+        // Проверяем инициализацию игроков
+        if (!this.players || !this.players[this.currentPlayerIndex]) return;
+
+        let infoDiv = document.getElementById('game-info-details');
+        if (!infoDiv) {
+            infoDiv = document.createElement('div');
+            infoDiv.id = 'game-info-details';
+            document.body.appendChild(infoDiv);
+        }
+
+        let html = '<div class="game-info-section">';
+        html += `<div class="info-row"><b>Комната:</b> ${this.roomId || 'Локальная игра'}</div>`;
+        html += `<div class="info-row"><b>Текущий игрок:</b> <span style="color: ${this.currentPlayerIndex === 0 ? '#4CAF50' : '#333'}">${this.players[this.currentPlayerIndex].name}</span></div>`;
+        html += `<div class="info-row"><b>Время хода:</b> <span style="color: ${this.turnTime <= 10 ? '#ff4444' : '#333'}">${this.turnTime}с</span></div>`;
+        html += '</div>';
+
+        if (this.openTile) {
+            html += '<div class="game-info-section">';
+            html += '<div class="info-row"><b>Открытая фишка:</b> ';
+            html += `<span class="tile-info" style="color: ${this.openTile.color}">${this.openTile.isJoker ? 'J' : this.openTile.number}</span>`;
+            html += '</div>';
+        }
+
+        if (this.jokerTile) {
+            html += '<div class="info-row"><b>Фальш-джокер:</b> ';
+            html += `<span class="tile-info" style="color: ${this.jokerTile.color}">${this.jokerTile.isJoker ? 'J' : this.jokerTile.number}</span>`;
+            html += '</div>';
+            html += '</div>';
+        }
+
+        infoDiv.innerHTML = html;
+    }
+
+    drawOpenTile() {
+        if (!this.openTile) return;
+        
+        const x = 20;
+        const y = this.canvas.height / 2 - 30;
+        
+        // Рисуем фон для открытой фишки
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.fillRect(x - 10, y - 10, 60, 80);
+        this.ctx.strokeStyle = '#666';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x - 10, y - 10, 60, 80);
+        
+        // Подпись
+        this.ctx.fillStyle = '#333';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Открытая', x + 20, y - 15);
+        this.ctx.fillText('фишка', x + 20, y - 2);
+        this.ctx.restore();
+        
+        // Рисуем открытую фишку
+        this.drawTile(this.openTile, x, y, 40, 60);
     }
 }
 
-// Для доступа из onclick в панели действий
 window.okeyGame = window.okeyGame || new OkeyGame(); 
