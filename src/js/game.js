@@ -129,16 +129,16 @@ class OkeyGame {
     }
 
     distributeTiles() {
-        // Отделяем резервные фишки
-        this.reservePile = this.tiles.slice(56);
-        this.tiles = this.tiles.slice(0, 56);
-        
-        // Распределяем фишки игрокам
+        // Распределение 22 фишки первому игроку (дилеру), 21 другим
+        let totalDistributed = 0;
         for (let i = 0; i < 4; i++) {
-            const tilesCount = i === 0 ? 15 : 14;
-            const startIndex = i === 0 ? 0 : 15 + (i - 1) * 14;
-            this.players[i].tiles = this.tiles.slice(startIndex, startIndex + tilesCount);
+            const tilesCount = (i === 0) ? 22 : 21;
+            this.players[i].tiles = this.tiles.slice(totalDistributed, totalDistributed + tilesCount);
+            totalDistributed += tilesCount;
         }
+
+        // Остальные — в резерв
+        this.reservePile = this.tiles.slice(totalDistributed);
     }
 
     updateScores() {
