@@ -129,7 +129,7 @@ class OkeyGame {
     }
 
     distributeTiles() {
-        // Распределение 22 фишки первому игроку (дилеру), 21 другим
+        // Распределение 22 фишки первому игроку (дилеру), 21 други
         let totalDistributed = 0;
         for (let i = 0; i < 4; i++) {
             const tilesCount = (i === 0) ? 22 : 21;
